@@ -4,11 +4,15 @@ import networkx as nx
 
 
 
-
-def dag_generator(n, p, rng=None):
+def dag_generator(n : int , p : float, rng=None) -> nx.DiGraph:
     """
     Fonction qui renvoie un graph orienté sans circuit (dag) avec pour chaque sommet une probabiltié p d'avoir une arête les reliant 
     """
+
+    if n <= 0:
+        raise ValueError("n doit etre strictement positif.")
+    if p < 0 or p > 1:
+        raise ValueError("p doit être entre 0 et 1")
     rng = rng or random
     G = nx.DiGraph()
     G.add_nodes_from(range(n))
@@ -18,24 +22,32 @@ def dag_generator(n, p, rng=None):
                 G.add_edge(i, j)
     return G
 
-def degeneracy(G):
+def degeneracy(G : nx.Graph) -> int:
     """
     G est le graph de co-comp d'un dag
     """
+    if G.is_directed():
+        raise nx.NetworkXError("Le graphe doit être non orienté")
+
     core = nx.core_number(G)                
     return max(core.values(), default=0)    
 
-def clique_number_exact(G):
+def clique_number_exact(G : nx.Graph) -> int:
     """
     G est le graph de co-comp d'un dag
     """
+    if G.is_directed():
+        raise nx.NetworkXError("Le graphe doit être non orienté")
     return max((len(C) for C in nx.find_cliques(G)), default=0)
 
-def get_co_comp(G):
+def get_co_comp(G : nx.DiGraph) -> nx.Graph:
     """
     G est un dag
     renvoie le graph de co-comparabilité de G
     """
+    if not nx.is_directed_acyclic_graph(G):
+        raise nx.NetworkXError("G doit être un dag")
+
     TC = nx.transitive_closure_dag(G)
     H = nx.Graph()
     H.add_nodes_from(G.nodes())
@@ -49,39 +61,17 @@ def get_co_comp(G):
                 H.add_edge(a, b)
     return H
 
-
-def max_clique_size_cocomp(G):
-    """
-    G est un dag
-    Fonction optimisée pour les dag 
-    taille max d'une clique du graphe de co-comparabilité de G.
-    """
-    TC = nx.algorithms.dag.transitive_closure_dag(G)
-    n = TC.number_of_nodes()
-
-    B = nx.Graph()
-    L = [(v, "L") for v in TC.nodes()]
-    Rr = [(v, "R") for v in TC.nodes()]
-    B.add_nodes_from(L)
-    B.add_nodes_from(Rr)
-
-    for u, v in TC.edges():
-        B.add_edge((u, "L"), (v, "R"))
-
-    matching = nx.algorithms.bipartite.maximum_matching(B, top_nodes=set(L))
-    nu = len(matching) // 2
-    return n - nu
-
-
-def antichain_width(P: nx.DiGraph) -> int:
+def antichain_width(G: nx.DiGraph) -> int:
     """
     Dilworth (largeur = antichaîne max) via :
       1) adjacences u_L--v_R si v est atteignable depuis u (descendants)
-      2) matching maximum biparti (NetworkX Hopcroft-Karp)
+      2) matching maximum biparti 
       3) retourne n - |M|
     """
-
-    nodes = list(P.nodes())
+    if not nx.is_directed_acyclic_graph(G):
+        raise nx.NetworkXError("G doit être un dag")
+    
+    nodes = list(G.nodes())
     n = len(nodes)
 
     # Construire le biparti B
@@ -94,7 +84,7 @@ def antichain_width(P: nx.DiGraph) -> int:
 
     # Arêtes: u_L -- v_R si v est atteignable depuis u
     for u in nodes:
-        for v in nx.descendants(P, u):
+        for v in nx.descendants(G, u):
             B.add_edge(("L", u), ("R", v))
 
     # Matching maximum (renvoie un dict des deux côtés)
@@ -103,7 +93,7 @@ def antichain_width(P: nx.DiGraph) -> int:
 
     return n - m_size
 
-def measure_cocomp_property(G, metric):
+def measure_cocomp_property(G : nx.DiGraph, metric : str) -> int:
     """
     Mesure w(H_G) ou d(H_G) pour le DAG G.
     """
